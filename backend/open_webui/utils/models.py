@@ -23,6 +23,7 @@ from open_webui.utils.plugin import (
     get_function_module_from_cache,
 )
 from open_webui.utils.access_control import has_access
+from open_webui.utils.running_models import fetch_all_openai_running_models
 
 
 from open_webui.config import (
@@ -71,8 +72,25 @@ async def get_all_base_models(request: Request, user: UserModel = None):
         else asyncio.sleep(0, result=[])
     )
     function_task = get_function_models(request)
+    running_models_task = (
+        fetch_all_openai_running_models(
+            request.app.state.config.OPENAI_API_CONFIGS,
+            request.app.state.config.OPENAI_API_BASE_URLS,
+        )
+        if request.app.state.config.ENABLE_OPENAI_API
+        else asyncio.sleep(0, result={})
+    )
 
-    openai_models, ollama_models, function_models = await asyncio.gather(openai_task, ollama_task, function_task)
+    openai_models, ollama_models, function_models, running_models = await asyncio.gather(
+        openai_task, ollama_task, function_task, running_models_task
+    )
+
+    # Enrich OpenAI models with running status from backends that report it
+    if running_models:
+        for model in openai_models:
+            model_id = model.get('id', '')
+            if model_id in running_models:
+                model['expires_at'] = running_models[model_id]
 
     return function_models + openai_models + ollama_models
 

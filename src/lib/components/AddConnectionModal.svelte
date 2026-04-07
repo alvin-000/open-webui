@@ -44,6 +44,7 @@
 	let enable = true;
 	let apiVersion = '';
 	let apiType = ''; // '' = chat completions (default), 'responses' = Responses API
+	let runningModelUrl = '';
 
 	let headers = '';
 
@@ -187,7 +188,8 @@
 				auth_type,
 				headers: headers ? JSON.parse(headers) : undefined,
 				...(!ollama && azure ? { azure: true, api_version: apiVersion } : {}),
-				...(apiType ? { api_type: apiType } : {})
+				...(apiType ? { api_type: apiType } : {}),
+				...(runningModelUrl ? { running_model_url: runningModelUrl } : {})
 			}
 		};
 
@@ -200,6 +202,7 @@
 		key = '';
 		auth_type = 'bearer';
 		prefixId = '';
+		runningModelUrl = '';
 		tags = [];
 		modelIds = [];
 	};
@@ -226,6 +229,7 @@
 				azure = connection.config?.azure ?? false;
 				apiVersion = connection.config?.api_version ?? '';
 				apiType = connection.config?.api_type ?? '';
+				runningModelUrl = connection.config?.running_model_url ?? '';
 			}
 		}
 	};
@@ -571,6 +575,36 @@
 											{$i18n.t('Chat Completions')}
 										{/if}
 									</button>
+								</div>
+							</div>
+						{/if}
+
+						{#if !ollama && !direct && !azure}
+							<div class="flex gap-2 mt-2">
+								<div class="flex flex-col w-full">
+									<label
+										for="running-model-url-input"
+										class={`mb-0.5 text-xs text-gray-500
+								${($settings?.highContrastMode ?? false) ? 'text-gray-800 dark:text-gray-100' : ''}`}
+										>{$i18n.t('llama-swap Running Model URL')}</label
+									>
+
+									<div class="flex-1">
+										<Tooltip
+											content={$i18n.t(
+												'Optional URL that returns currently loaded models with TTL info (e.g. llama-swap /running endpoint)'
+											)}
+										>
+											<input
+												class={`w-full text-sm bg-transparent ${($settings?.highContrastMode ?? false) ? 'placeholder:text-gray-700 dark:placeholder:text-gray-100' : 'outline-hidden placeholder:text-gray-300 dark:placeholder:text-gray-700'}`}
+												type="text"
+												id="running-model-url-input"
+												bind:value={runningModelUrl}
+												placeholder="e.g. http://host:port/running"
+												autocomplete="off"
+											/>
+										</Tooltip>
+									</div>
 								</div>
 							</div>
 						{/if}

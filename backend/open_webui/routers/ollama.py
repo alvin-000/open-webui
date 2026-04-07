@@ -615,6 +615,48 @@ async def unload_model(
     if not model_name:
         raise HTTPException(status_code=400, detail='Missing name of the model to unload.')
 
+    # Check if this is an OpenAI-connection model with running status
+    all_models = request.app.state.MODELS
+    model_entry = all_models.get(model_name, {}) if isinstance(all_models, dict) else {}
+
+    if model_entry.get('expires_at') and model_entry.get('owned_by') != 'ollama':
+        url_idx = model_entry.get('urlIdx')
+        if url_idx is not None:
+            api_config = request.app.state.config.OPENAI_API_CONFIGS.get(
+                str(url_idx), {}
+            )
+            running_url = api_config.get('running_model_url', '')
+            if running_url:
+                base_url = running_url.rsplit('/running', 1)[0]
+
+                # Strip prefix_id from model name for the unload request
+                prefix_id = api_config.get('prefix_id', '')
+                unload_name = model_name
+                if prefix_id and model_name.startswith(f'{prefix_id}.'):
+                    unload_name = model_name[len(f'{prefix_id}.'):]
+
+                unload_url = f'{base_url}/api/models/unload/{unload_name}'
+                try:
+                    timeout = aiohttp.ClientTimeout(total=10)
+                    async with aiohttp.ClientSession(timeout=timeout) as session:
+                        async with session.post(unload_url) as resp:
+                            if resp.status == 200:
+                                return {'status': True}
+                            else:
+                                body = await resp.text()
+                                raise HTTPException(
+                                    status_code=resp.status,
+                                    detail=f'Failed to unload model: {body}',
+                                )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    log.exception(f'Failed to unload model {model_name}: {e}')
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f'Failed to unload model: {e}',
+                    )
+
     # Refresh/load models if needed, get mapping from name to URLs
     await get_all_models(request, user=user)
     models = request.app.state.OLLAMA_MODELS
